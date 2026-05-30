@@ -1,0 +1,27 @@
+# Gradle / Android build outputs
+.gradle/
+**/build/
+.build-outputs/
+local.properties
+
+# Android signing secrets
+*.jks
+*.keystore
+key.properties
+
+# IDE / editor noise
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/shelf/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Agent/tool scratch files
+.agent-work/
+.serena/
+
+# Encoded/generated signing material
+*.base64

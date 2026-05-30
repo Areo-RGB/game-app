@@ -1,0 +1,122 @@
+package com.example
+
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import android.widget.Toast
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
+import java.io.File
+
+object GitHubReleaseUpdater {
+    private const val OWNER = "Areo-RGB"
+    private const val REPO = "game-app"
+    private const val APK_NAME_HINT = ".apk"
+    private const val LATEST_RELEASE_URL = "https://api.github.com/repos/$OWNER/$REPO/releases/latest"
+
+    private val client = OkHttpClient()
+
+    data class UpdateInfo(
+        val tagName: String,
+        val versionCode: Int,
+        val versionName: String,
+        val apkUrl: String,
+        val body: String,
+    )
+
+    suspend fun checkForUpdate(context: Context): Result<UpdateInfo?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url(LATEST_RELEASE_URL)
+                .header("Accept", "application/vnd.github+json")
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) error("GitHub release check failed: HTTP ${response.code}")
+                val json = JSONObject(response.body?.string().orEmpty())
+                val tag = json.optString("tag_name")
+                val releaseName = json.optString("name", tag)
+                val body = json.optString("body")
+                val assets = json.optJSONArray("assets") ?: error("Release has no assets")
+                var apkUrl: String? = null
+                for (i in 0 until assets.length()) {
+                    val asset = assets.getJSONObject(i)
+                    val name = asset.optString("name")
+                    if (name.endsWith(APK_NAME_HINT, ignoreCase = true)) {
+                        apkUrl = asset.optString("browser_download_url")
+                        break
+                    }
+                }
+                val downloadUrl = apkUrl ?: error("Release has no APK asset")
+                val releaseVersionCode = parseVersionCode(tag, releaseName, body)
+                if (releaseVersionCode > BuildConfig.VERSION_CODE) {
+                    UpdateInfo(
+                        tagName = tag,
+                        versionCode = releaseVersionCode,
+                        versionName = tag.removePrefix("v"),
+                        apkUrl = downloadUrl,
+                        body = body,
+                    )
+                } else {
+                    null
+                }
+            }
+        }
+    }
+
+    suspend fun downloadAndInstall(activity: Activity, update: UpdateInfo): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder().url(update.apkUrl).build()
+            val apkFile = File(activity.cacheDir, "game-app-${update.versionName}.apk")
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) error("APK download failed: HTTP ${response.code}")
+                response.body?.byteStream()?.use { input ->
+                    apkFile.outputStream().use { output -> input.copyTo(output) }
+                } ?: error("APK download had no body")
+            }
+            withContext(Dispatchers.Main) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !activity.packageManager.canRequestPackageInstalls()) {
+                    Toast.makeText(activity, "Allow installs for this app, then tap update again.", Toast.LENGTH_LONG).show()
+                    activity.startActivity(
+                        Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                            data = Uri.parse("package:${activity.packageName}")
+                        }
+                    )
+                    return@withContext
+                }
+                val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", apkFile)
+                activity.startActivity(
+                    Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, "application/vnd.android.package-archive")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                )
+            }
+        }
+    }
+
+    private fun parseVersionCode(vararg values: String): Int {
+        values.forEach { value ->
+            Regex("versionCode\\s*[:=]\\s*(\\d+)", RegexOption.IGNORE_CASE)
+                .find(value)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toIntOrNull()
+                ?.let { return it }
+        }
+        values.firstOrNull()?.let { tag ->
+            val parts = tag.removePrefix("v").split('.', '-', '_').mapNotNull { it.toIntOrNull() }
+            if (parts.isNotEmpty()) return parts.fold(0) { acc, part -> acc * 1000 + part }
+        }
+        return 0
+    }
+}

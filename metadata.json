@@ -1,0 +1,6 @@
+{
+  "name": "Reaction Timer",
+  "description": "A precision reaction speed training game with customizable options, scaling difficulty, and elegant design.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

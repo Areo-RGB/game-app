@@ -1,0 +1,54 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Top Button of the stopwatch -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,22 H58 V27 H50 Z" />
+        
+    <!-- Top Ring loop -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M44,27 C44,19 64,19 64,27" />
+
+    <!-- Side Button -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M70.7,31.3 L74.2,34.8 L71.5,37.5 L68,34 Z" />
+
+    <!-- Outer Stopwatch Rim -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.5"
+        android:fillColor="#00000000"
+        android:pathData="M54,27 A27,27 0 1,1 53.9,27 Z" />
+        
+    <!-- Main Indicator Tick Marks -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M53,32 H55 V36 H53 Z M53,74 H55 V78 H53 Z M32,53 H36 V55 H32 Z M72,53 H76 V55 H72 Z" />
+
+    <!-- Clockwise sweep representation -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.25"
+        android:pathData="M54,54 L54,36 A18,18 0 0,1 72,54 Z" />
+
+    <!-- Watch hands / pointer pointing at a 120-degree angle -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M54,54 L65,43" />
+        
+    <!-- Center pin -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M51,54 A3,3 0 1,1 57,54 A3,3 0 1,1 51,54" />
+</vector>
