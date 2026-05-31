@@ -1,4 +1,4 @@
-﻿package com.example
+package com.example
 
 import android.app.Activity
 import android.content.Context
@@ -55,6 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
@@ -180,11 +181,9 @@ fun MainAppScreen(viewModel: MainViewModel = viewModel()) {
     val activeTab by viewModel.activeTab.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val localRole = viewModel.localRole
+    val showTabBar = localRole != DeviceRole.DISPLAY && !(activeTab == ActiveTab.GAME && settings.fullscreen)
 
-    val immersiveEnabled = localRole == DeviceRole.DISPLAY || (activeTab == ActiveTab.GAME && settings.fullscreen)
-    val showTabBar = localRole != DeviceRole.DISPLAY && !immersiveEnabled
-
-    ConfigureSystemBars(immersive = immersiveEnabled)
+    ConfigureSystemBars(immersive = true)
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -1324,6 +1323,13 @@ fun SettingsTabContent(viewModel: MainViewModel) {
     val availableControllers by viewModel.availableControllers.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
+    val activity = context.findActivity()
+    val scope = rememberCoroutineScope()
+    var isCheckingForUpdate by remember { mutableStateOf(false) }
+    var isInstallingUpdate by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<GitHubReleaseUpdater.UpdateInfo?>(null) }
+    var updateStatusMessage by remember { mutableStateOf<String?>(null) }
+    var showInstallPrompt by remember { mutableStateOf(false) }
     fun startNearbyForCurrentRole() {
         if (settings.isController) {
             viewModel.startNearbyHosting()
@@ -1372,7 +1378,7 @@ fun SettingsTabContent(viewModel: MainViewModel) {
             letterSpacing = (-0.5).sp
         )
         Text(
-            text = "Configure the reaction game to your liking.",
+            text = "Configure the reaction game to your liking!",
             fontSize = 13.sp,
             color = Color(0xFF6B7280),
             modifier = Modifier.padding(top = 2.dp, bottom = 24.dp)
@@ -1517,6 +1523,149 @@ fun SettingsTabContent(viewModel: MainViewModel) {
                 checked = settings.fullscreen,
                 onCheckedChange = { viewModel.toggleFullscreen() },
                 modifier = Modifier.testTag("fullscreen_toggle_row")
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        SettingsCategory(title = "App Updates") {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = "Current version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    fontSize = 12.sp,
+                    color = Color(0xFF6B7280)
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        if (isCheckingForUpdate || isInstallingUpdate) return@Button
+                        scope.launch {
+                            isCheckingForUpdate = true
+                            updateStatusMessage = null
+                            val result = GitHubReleaseUpdater.checkForUpdate()
+                            isCheckingForUpdate = false
+                            result.fold(
+                                onSuccess = { info ->
+                                    if (info == null) {
+                                        updateInfo = null
+                                        updateStatusMessage = "Already on latest version."
+                                    } else {
+                                        updateInfo = info
+                                        showInstallPrompt = true
+                                    }
+                                },
+                                onFailure = { error ->
+                                    updateInfo = null
+                                    val message = error.message ?: "Unknown error"
+                                    updateStatusMessage = if (message == "No GitHub release published yet.") {
+                                        "No published update release yet."
+                                    } else {
+                                        "Update check failed: $message"
+                                    }
+                                }
+                            )
+                        }
+                    },
+                    enabled = !isCheckingForUpdate && !isInstallingUpdate,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("check_updates_button"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF111827),
+                        contentColor = Color.White
+                    )
+                ) {
+                    if (isCheckingForUpdate) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    } else {
+                        Text("Check for updates")
+                    }
+                }
+
+                if (isInstallingUpdate) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Downloading update...",
+                        fontSize = 12.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+
+                updateStatusMessage?.let { message ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = message,
+                        fontSize = 12.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+            }
+        }
+
+        if (showInstallPrompt && updateInfo != null) {
+            val info = updateInfo!!
+            AlertDialog(
+                onDismissRequest = { showInstallPrompt = false },
+                title = { Text("Update available") },
+                text = {
+                    Column {
+                        Text("Version ${info.versionName} is available.")
+                        if (info.body.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = info.body,
+                                fontSize = 12.sp,
+                                color = Color(0xFF6B7280)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showInstallPrompt = false
+                            val currentActivity = activity
+                            if (currentActivity == null) {
+                                updateStatusMessage = "Cannot install update from this context."
+                                return@TextButton
+                            }
+                            scope.launch {
+                                isInstallingUpdate = true
+                                updateStatusMessage = null
+                                val installResult =
+                                    GitHubReleaseUpdater.downloadAndInstall(currentActivity, info)
+                                isInstallingUpdate = false
+                                installResult.fold(
+                                    onSuccess = {
+                                        updateStatusMessage = "Installer opened."
+                                    },
+                                    onFailure = { error ->
+                                        updateStatusMessage =
+                                            "Update install failed: ${error.message ?: "Unknown error"}"
+                                    }
+                                )
+                            }
+                        },
+                        enabled = !isInstallingUpdate
+                    ) {
+                        Text("Install")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showInstallPrompt = false }) {
+                        Text("Later")
+                    }
+                }
             )
         }
 
