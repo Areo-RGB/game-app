@@ -1193,6 +1193,32 @@ fun ControllerLiveTabContent(viewModel: MainViewModel) {
                     fontSize = 12.sp,
                     color = Color(0xFF6B7280)
                 )
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = { viewModel.broadcastOpenGameTab() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("live_switch_followers_to_game_button"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF111827),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Switch all followers to Game")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { viewModel.broadcastResetGame() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("live_reset_all_devices_button"),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Reset all devices to Start")
+                }
             }
         }
 
@@ -1208,12 +1234,50 @@ fun ControllerLiveTabContent(viewModel: MainViewModel) {
                     )
                 } else {
                     statuses.forEach { status ->
-                        Text(
-                            text = "${status.label}: ${status.lives}/${status.maxLives}",
-                            fontSize = 13.sp,
-                            color = Color(0xFF1F2937),
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 10.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                            border = AssistChipDefaults.assistChipBorder(enabled = true, borderColor = Color(0xFFE5E7EB))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = status.label,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF111827),
+                                        lineHeight = 18.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Device lives",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF6B7280)
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(999.dp),
+                                    color = if (status.lives <= 1) Color(0xFFFEE2E2) else Color(0xFFDCFCE7)
+                                ) {
+                                    Text(
+                                        text = "${status.lives}/${status.maxLives}",
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (status.lives <= 1) Color(0xFFB91C1C) else Color(0xFF166534)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1343,7 +1407,7 @@ fun GameSettingsTabContent(viewModel: MainViewModel) {
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 Text(
-                    text = "Current version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
                     fontSize = 12.sp,
                     color = Color(0xFF6B7280)
                 )
@@ -1360,7 +1424,7 @@ fun GameSettingsTabContent(viewModel: MainViewModel) {
                                 onSuccess = { info ->
                                     if (info == null) {
                                         updateInfo = null
-                                        updateStatusMessage = "Already on latest version."
+                                        updateStatusMessage = "Up to date."
                                     } else {
                                         updateInfo = info
                                         showInstallPrompt = true
@@ -1369,11 +1433,7 @@ fun GameSettingsTabContent(viewModel: MainViewModel) {
                                 onFailure = { error ->
                                     updateInfo = null
                                     val message = error.message ?: "Unknown error"
-                                    updateStatusMessage = if (message == "No GitHub release published yet.") {
-                                        "No published update release yet."
-                                    } else {
-                                        "Update check failed: $message"
-                                    }
+                                    updateStatusMessage = "Update error."
                                 }
                             )
                         }
@@ -1396,14 +1456,14 @@ fun GameSettingsTabContent(viewModel: MainViewModel) {
                             color = Color.White
                         )
                     } else {
-                        Text("Check for updates")
+                        Text("Updates?")
                     }
                 }
 
                 if (isInstallingUpdate) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Downloading update...",
+                        text = "Installing...",
                         fontSize = 12.sp,
                         color = Color(0xFF6B7280)
                     )
@@ -1424,18 +1484,10 @@ fun GameSettingsTabContent(viewModel: MainViewModel) {
             val info = updateInfo!!
             AlertDialog(
                 onDismissRequest = { showInstallPrompt = false },
-                title = { Text("Update available") },
+                title = { Text("Updates?") },
                 text = {
                     Column {
-                        Text("Version ${info.versionName} is available.")
-                        if (info.body.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = info.body,
-                                fontSize = 12.sp,
-                                color = Color(0xFF6B7280)
-                            )
-                        }
+                        Text("v${info.versionName}")
                     }
                 },
                 confirmButton = {
@@ -1444,7 +1496,7 @@ fun GameSettingsTabContent(viewModel: MainViewModel) {
                             showInstallPrompt = false
                             val currentActivity = activity
                             if (currentActivity == null) {
-                                updateStatusMessage = "Cannot install update from this context."
+                                updateStatusMessage = "Update error."
                                 return@TextButton
                             }
                             scope.launch {
@@ -1455,23 +1507,22 @@ fun GameSettingsTabContent(viewModel: MainViewModel) {
                                 isInstallingUpdate = false
                                 installResult.fold(
                                     onSuccess = {
-                                        updateStatusMessage = "Installer opened."
+                                        updateStatusMessage = "Done."
                                     },
                                     onFailure = { error ->
-                                        updateStatusMessage =
-                                            "Update install failed: ${error.message ?: "Unknown error"}"
+                                        updateStatusMessage = "Update error."
                                     }
                                 )
                             }
                         },
                         enabled = !isInstallingUpdate
                     ) {
-                        Text("Install")
+                        Text("Yes!")
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showInstallPrompt = false }) {
-                        Text("Later")
+                        Text("No")
                     }
                 }
             )
@@ -1850,7 +1901,7 @@ fun SettingsTabContent(viewModel: MainViewModel) {
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 Text(
-                    text = "Current version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
                     fontSize = 12.sp,
                     color = Color(0xFF6B7280)
                 )
@@ -1867,7 +1918,7 @@ fun SettingsTabContent(viewModel: MainViewModel) {
                                 onSuccess = { info ->
                                     if (info == null) {
                                         updateInfo = null
-                                        updateStatusMessage = "Already on latest version."
+                                        updateStatusMessage = "Up to date."
                                     } else {
                                         updateInfo = info
                                         showInstallPrompt = true
@@ -1876,11 +1927,7 @@ fun SettingsTabContent(viewModel: MainViewModel) {
                                 onFailure = { error ->
                                     updateInfo = null
                                     val message = error.message ?: "Unknown error"
-                                    updateStatusMessage = if (message == "No GitHub release published yet.") {
-                                        "No published update release yet."
-                                    } else {
-                                        "Update check failed: $message"
-                                    }
+                                    updateStatusMessage = "Update error."
                                 }
                             )
                         }
@@ -1903,14 +1950,14 @@ fun SettingsTabContent(viewModel: MainViewModel) {
                             color = Color.White
                         )
                     } else {
-                        Text("Check for updates")
+                        Text("Updates?")
                     }
                 }
 
                 if (isInstallingUpdate) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Downloading update...",
+                        text = "Installing...",
                         fontSize = 12.sp,
                         color = Color(0xFF6B7280)
                     )
@@ -1931,18 +1978,10 @@ fun SettingsTabContent(viewModel: MainViewModel) {
             val info = updateInfo!!
             AlertDialog(
                 onDismissRequest = { showInstallPrompt = false },
-                title = { Text("Update available") },
+                title = { Text("Updates?") },
                 text = {
                     Column {
-                        Text("Version ${info.versionName} is available.")
-                        if (info.body.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = info.body,
-                                fontSize = 12.sp,
-                                color = Color(0xFF6B7280)
-                            )
-                        }
+                        Text("v${info.versionName}")
                     }
                 },
                 confirmButton = {
@@ -1951,7 +1990,7 @@ fun SettingsTabContent(viewModel: MainViewModel) {
                             showInstallPrompt = false
                             val currentActivity = activity
                             if (currentActivity == null) {
-                                updateStatusMessage = "Cannot install update from this context."
+                                updateStatusMessage = "Update error."
                                 return@TextButton
                             }
                             scope.launch {
@@ -1962,23 +2001,22 @@ fun SettingsTabContent(viewModel: MainViewModel) {
                                 isInstallingUpdate = false
                                 installResult.fold(
                                     onSuccess = {
-                                        updateStatusMessage = "Installer opened."
+                                        updateStatusMessage = "Done."
                                     },
                                     onFailure = { error ->
-                                        updateStatusMessage =
-                                            "Update install failed: ${error.message ?: "Unknown error"}"
+                                        updateStatusMessage = "Update error."
                                     }
                                 )
                             }
                         },
                         enabled = !isInstallingUpdate
                     ) {
-                        Text("Install")
+                        Text("Yes!")
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showInstallPrompt = false }) {
-                        Text("Later")
+                        Text("No")
                     }
                 }
             )
