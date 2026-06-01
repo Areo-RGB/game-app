@@ -100,7 +100,15 @@ object DevicePresets {
                 device = "OP557AL1",
                 product = "CPH2399EEA",
             ) -> DevicePreset(
-                label = "OnePlus CPH2399 controller",
+                label = "OnePlus CPH2399 follower",
+                role = DeviceRole.FOLLOWER,
+            )
+            identity.matches(
+                model = "23021RAA2Y",
+                device = "topaz",
+                product = "topaz_eea",
+            ) -> DevicePreset(
+                label = "Tablet 23021RAA2Y controller",
                 role = DeviceRole.CONTROLLER,
             )
             identity.matches(
