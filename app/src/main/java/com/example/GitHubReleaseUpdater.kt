@@ -120,12 +120,12 @@ object GitHubReleaseUpdater {
                 try {
                     activity.startActivity(installIntent)
                 } catch (_: ActivityNotFoundException) {
-                    val packageIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
-                        data = uri
+                    val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, "application/vnd.android.package-archive")
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
-                    activity.startActivity(packageIntent)
+                    activity.startActivity(fallbackIntent)
                 }
             }
         }
