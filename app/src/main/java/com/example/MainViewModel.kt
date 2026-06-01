@@ -466,14 +466,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun getEffectiveLimit(startTime: Long, currentSettings: SettingsEntity): Long {
-        if (startTime == 0L) return currentSettings.initTime.toLong()
+        if (!currentSettings.autoDifficultyEnabled || startTime == 0L) {
+            return currentSettings.initTime.toLong()
+        }
         val elapsed = System.currentTimeMillis() - startTime
-        val intervals = (elapsed / currentSettings.scaleInterval)
+        val interval = currentSettings.scaleInterval.toLong().coerceAtLeast(1L)
+        val intervals = elapsed / interval
         val reduced = currentSettings.initTime - (intervals * currentSettings.reduction)
         return reduced.coerceAtLeast(currentSettings.minTime.toLong())
     }
 
     // Adjustment methods checking constraints
+    fun toggleAutoDifficulty() {
+        val current = settings.value
+        saveSettingsToDb(current.copy(autoDifficultyEnabled = !current.autoDifficultyEnabled))
+    }
+
+    fun adjustManualLimit(direction: Int) {
+        val current = settings.value
+        val step = current.manualLimitStepMs.coerceIn(10, 5000)
+        val delta = if (direction < 0) -step else step
+        val next = (current.initTime + delta).coerceIn(250, 120000)
+        val updatedMin = if (current.minTime >= next) {
+            (next - 250).coerceAtLeast(250)
+        } else {
+            current.minTime
+        }
+        saveSettingsToDb(current.copy(initTime = next, minTime = updatedMin))
+    }
+
+    fun adjustManualLimitStep(delta: Int) {
+        val current = settings.value
+        val next = (current.manualLimitStepMs + delta).coerceIn(10, 5000)
+        saveSettingsToDb(current.copy(manualLimitStepMs = next))
+    }
+
     fun adjustInitTime(delta: Int) {
         val current = settings.value
         val next = (current.initTime + delta).coerceIn(1000, 120000)
@@ -855,6 +882,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 "minTime=${s.minTime};" +
                 "reduction=${s.reduction};" +
                 "scaleInterval=${s.scaleInterval};" +
+                "autoDifficultyEnabled=${s.autoDifficultyEnabled};" +
+                "manualLimitStepMs=${s.manualLimitStepMs};" +
                 "urgentMs=${s.urgentMs};" +
                 "fullscreen=${s.fullscreen};" +
                 "isReverseMode=${s.isReverseMode};" +
@@ -877,6 +906,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 minTime = map["minTime"]?.toInt() ?: current.minTime,
                 reduction = map["reduction"]?.toInt() ?: current.reduction,
                 scaleInterval = map["scaleInterval"]?.toInt() ?: current.scaleInterval,
+                autoDifficultyEnabled = map["autoDifficultyEnabled"]?.toBoolean() ?: current.autoDifficultyEnabled,
+                manualLimitStepMs = map["manualLimitStepMs"]?.toInt() ?: current.manualLimitStepMs,
                 urgentMs = map["urgentMs"]?.toInt() ?: current.urgentMs,
                 fullscreen = map["fullscreen"]?.toBoolean() ?: current.fullscreen,
                 isReverseMode = map["isReverseMode"]?.toBoolean() ?: current.isReverseMode,

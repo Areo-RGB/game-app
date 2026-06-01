@@ -10,6 +10,8 @@ data class SettingsEntity(
     val minTime: Int = 1000,
     val reduction: Int = 250,
     val scaleInterval: Int = 60000,
+    val autoDifficultyEnabled: Boolean = false,
+    val manualLimitStepMs: Int = 100,
     val urgentMs: Int = 3000,
     val fullscreen: Boolean = true,
     val highScore: Int = 0,

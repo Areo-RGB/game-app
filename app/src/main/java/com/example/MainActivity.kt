@@ -347,6 +347,9 @@ fun GameTabContent(viewModel: MainViewModel) {
 
     fun nextDifficultyText(): String {
         if (settings.isReverseMode) return "Nächste Schwierigkeit: Reverse Mode nutzt kein Scale-Intervall"
+        if (!settings.autoDifficultyEnabled) {
+            return "Manuelles Limit: ${settings.initTime} ms  •  Schritt ${settings.manualLimitStepMs} ms"
+        }
         if (gameState != MyGameState.RUNNING || sessionStart == 0L) {
             return "Nächste Schwierigkeit in ${settings.scaleInterval} ms"
         }
@@ -1250,58 +1253,93 @@ fun GameTimerSettingsCard(viewModel: MainViewModel) {
             )
         }
         HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
-        SettingsAdjusterRow(
-            label = "Initial countdown",
-            description = "Time you have to press the button",
-            valueText = "${settings.initTime}ms",
-            onMinus = { viewModel.adjustInitTime(-500) },
-            onPlus = { viewModel.adjustInitTime(500) },
-            modifier = Modifier.testTag("init_time_adjuster")
+        SettingsToggleRow(
+            label = "Auto difficulty scaling",
+            description = if (settings.autoDifficultyEnabled) {
+                "Auto mode decreases the limit after each interval"
+            } else {
+                "Manual mode is active. Use the limit buttons below."
+            },
+            checked = settings.autoDifficultyEnabled,
+            onCheckedChange = { viewModel.toggleAutoDifficulty() },
+            modifier = Modifier.testTag("auto_difficulty_toggle")
         )
-        HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
-        SettingsAdjusterRow(
-            label = "Reduction per interval",
-            description = "How much the limit shrinks each interval",
-            valueText = "${settings.reduction}ms",
-            onMinus = { viewModel.adjustReduction(-50) },
-            onPlus = { viewModel.adjustReduction(50) },
-            modifier = Modifier.testTag("reduction_adjuster")
-        )
-        HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .testTag("scale_interval_input_row")
-        ) {
-            Text(
-                text = "Scale interval",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF1F2937)
+
+        if (settings.autoDifficultyEnabled) {
+            HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
+            SettingsAdjusterRow(
+                label = "Initial countdown",
+                description = "Starting limit before auto scaling reduces it",
+                valueText = "${settings.initTime}ms",
+                onMinus = { viewModel.adjustInitTime(-500) },
+                onPlus = { viewModel.adjustInitTime(500) },
+                modifier = Modifier.testTag("init_time_adjuster")
             )
-            Text(
-                text = "Reduction interval in exact milliseconds",
-                fontSize = 12.sp,
-                color = Color(0xFF9CA3AF),
-                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+            HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
+            SettingsAdjusterRow(
+                label = "Reduction per interval",
+                description = "How much the limit shrinks each interval",
+                valueText = "${settings.reduction}ms",
+                onMinus = { viewModel.adjustReduction(-50) },
+                onPlus = { viewModel.adjustReduction(50) },
+                modifier = Modifier.testTag("reduction_adjuster")
             )
-            OutlinedTextField(
-                value = scaleIntervalInput,
-                onValueChange = { raw ->
-                    val cleaned = raw.filter { it.isDigit() }.take(7)
-                    scaleIntervalInput = cleaned
-                    cleaned.toIntOrNull()?.let { viewModel.setScaleIntervalMs(it) }
-                },
+            HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("scale_interval_ms_input"),
-                singleLine = true,
-                suffix = { Text("ms") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                shape = RoundedCornerShape(10.dp)
+                    .padding(16.dp)
+                    .testTag("scale_interval_input_row")
+            ) {
+                Text(
+                    text = "Scale interval",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1F2937)
+                )
+                Text(
+                    text = "Reduction interval in exact milliseconds",
+                    fontSize = 12.sp,
+                    color = Color(0xFF9CA3AF),
+                    modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                )
+                OutlinedTextField(
+                    value = scaleIntervalInput,
+                    onValueChange = { raw ->
+                        val cleaned = raw.filter { it.isDigit() }.take(7)
+                        scaleIntervalInput = cleaned
+                        cleaned.toIntOrNull()?.let { viewModel.setScaleIntervalMs(it) }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("scale_interval_ms_input"),
+                    singleLine = true,
+                    suffix = { Text("ms") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(10.dp)
+                )
+            }
+        } else {
+            HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
+            SettingsAdjusterRow(
+                label = "Manual countdown limit",
+                description = "Use -/+ to directly decrease or increase the active limit",
+                valueText = "${settings.initTime}ms",
+                onMinus = { viewModel.adjustManualLimit(-1) },
+                onPlus = { viewModel.adjustManualLimit(1) },
+                modifier = Modifier.testTag("manual_limit_adjuster")
+            )
+            HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
+            SettingsAdjusterRow(
+                label = "Manual step",
+                description = "Amount used by the manual limit -/+ buttons",
+                valueText = "${settings.manualLimitStepMs}ms",
+                onMinus = { viewModel.adjustManualLimitStep(-50) },
+                onPlus = { viewModel.adjustManualLimitStep(50) },
+                modifier = Modifier.testTag("manual_limit_step_adjuster")
             )
         }
+
         HorizontalDivider(color = Color(0xFFF3F4F6), thickness = 1.dp)
         SettingsAdjusterRow(
             label = "Urgent threshold",
