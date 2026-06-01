@@ -2,7 +2,7 @@
 param(
   [string]$Workflow = "build-apk.yml",
   [string]$Branch = "main",
-  [string]$ArtifactName = "app-debug-apk",
+  [string]$ArtifactName = "app-release-apk",
   [string]$DownloadRoot = ".build-outputs/releases",
   [string]$Tag,
   [string]$Title,
