@@ -14,6 +14,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.net.SocketTimeoutException
+import java.util.concurrent.TimeUnit
 
 object GitHubReleaseUpdater {
     private const val OWNER = "Areo-RGB"
@@ -22,6 +24,12 @@ object GitHubReleaseUpdater {
     private const val APP_USER_AGENT = "game-app-android-updater"
     private const val LATEST_RELEASE_URL = "https://api.github.com/repos/$OWNER/$REPO/releases/latest"
     private val client = OkHttpClient()
+    private val downloadClient = client.newBuilder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(5, TimeUnit.MINUTES)
+        .writeTimeout(5, TimeUnit.MINUTES)
+        .callTimeout(6, TimeUnit.MINUTES)
+        .build()
 
     data class UpdateInfo(
         val tagName: String,
@@ -94,11 +102,15 @@ object GitHubReleaseUpdater {
                 .header("User-Agent", APP_USER_AGENT)
                 .build()
             val apkFile = File(activity.cacheDir, "game-app-${update.versionName}.apk")
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) error("APK download failed: HTTP ${response.code}")
-                response.body?.byteStream()?.use { input ->
-                    apkFile.outputStream().use { output -> input.copyTo(output) }
-                } ?: error("APK download had no body")
+            try {
+                downloadClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) error("APK download failed: HTTP ${response.code}")
+                    response.body?.byteStream()?.use { input ->
+                        apkFile.outputStream().use { output -> input.copyTo(output) }
+                    } ?: error("APK download had no body")
+                }
+            } catch (_: SocketTimeoutException) {
+                error("APK download timed out. Check connection and try again.")
             }
             withContext(Dispatchers.Main) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !activity.packageManager.canRequestPackageInstalls()) {
