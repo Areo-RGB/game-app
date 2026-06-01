@@ -108,8 +108,8 @@ object DevicePresets {
                 device = "topaz",
                 product = "topaz_eea",
             ) -> DevicePreset(
-                label = "Tablet 23021RAA2Y controller",
-                role = DeviceRole.CONTROLLER,
+                label = "Xiaomi 23021RAA2Y follower",
+                role = DeviceRole.FOLLOWER,
             )
             identity.matches(
                 manufacturer = "Xiaomi",
@@ -118,8 +118,8 @@ object DevicePresets {
                 device = "uke",
                 product = "uke_eea",
             ) -> DevicePreset(
-                label = "Xiaomi 2410CRP4CG display",
-                role = DeviceRole.DISPLAY,
+                label = "Xiaomi 2410CRP4CG controller",
+                role = DeviceRole.CONTROLLER,
             )
             else -> DevicePreset(label = "Default follower/device")
         }

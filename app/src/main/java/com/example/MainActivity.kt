@@ -224,6 +224,19 @@ fun MainAppScreen(viewModel: MainViewModel = viewModel()) {
                     )
                     if (settings.isController) {
                         TabButton(
+                            label = "Live",
+                            icon = ClockIcon,
+                            isActive = activeTab == ActiveTab.LIVE,
+                            onClick = { viewModel.setActiveTab(ActiveTab.LIVE) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        VerticalDivider(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .width(1.dp),
+                            color = Color(0xFFE5E7EB)
+                        )
+                        TabButton(
                             label = "Game Settings",
                             icon = Icons.Default.Settings,
                             isActive = activeTab == ActiveTab.GAME_SETTINGS,
@@ -252,6 +265,7 @@ fun MainAppScreen(viewModel: MainViewModel = viewModel()) {
                 ActiveTab.GAME -> GameTabContent(viewModel)
                 ActiveTab.SETTINGS -> SettingsTabContent(viewModel)
                 ActiveTab.GAME_SETTINGS -> GameSettingsTabContent(viewModel)
+                ActiveTab.LIVE -> ControllerLiveTabContent(viewModel)
                 ActiveTab.DISPLAY -> DisplayTabContent(viewModel)
             }
         }
@@ -1107,11 +1121,120 @@ fun DisplayLifePanel(
 }
 
 @Composable
+fun ControllerLiveTabContent(viewModel: MainViewModel) {
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val nearbyStatus by viewModel.nearbyStatus.collectAsStateWithLifecycle()
+    val connectedDevicesCount by viewModel.connectedDevicesCount.collectAsStateWithLifecycle()
+    val statuses by viewModel.displayLifeStatuses.collectAsStateWithLifecycle()
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF9FAFB))
+            .verticalScroll(scrollState)
+            .padding(horizontal = 20.dp, vertical = 24.dp)
+            .testTag("controller_live_screen")
+    ) {
+        Text(
+            text = "Live",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF111827),
+            letterSpacing = (-0.5).sp
+        )
+        Text(
+            text = "Realtime controller state and follower lives",
+            fontSize = 13.sp,
+            color = Color(0xFF6B7280),
+            modifier = Modifier.padding(top = 2.dp, bottom = 18.dp)
+        )
+
+        SettingsCategory(title = "Current Mode") {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Game mode: ${if (settings.isReverseMode) "Reverse (Stopwatch)" else "Standard Countdown"}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF1F2937)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Difficulty: ${if (settings.autoDifficultyEnabled) "Auto" else "Manual"}",
+                    fontSize = 12.sp,
+                    color = Color(0xFF6B7280)
+                )
+                Text(
+                    text = "Timer: init ${settings.initTime}ms, urgent ${settings.urgentMs}ms",
+                    fontSize = 12.sp,
+                    color = Color(0xFF6B7280)
+                )
+                Text(
+                    text = "Lives: ${if (settings.livesEnabled) "ON (${settings.livesCount})" else "OFF"}",
+                    fontSize = 12.sp,
+                    color = Color(0xFF6B7280)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SettingsCategory(title = "Connection Status") {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Connected followers: $connectedDevicesCount",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF1F2937)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Status: $nearbyStatus",
+                    fontSize = 12.sp,
+                    color = Color(0xFF6B7280)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SettingsCategory(title = "Follower Lives") {
+            Column(modifier = Modifier.padding(16.dp)) {
+                if (statuses.isEmpty()) {
+                    Text(
+                        text = "No follower life telemetry yet.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                } else {
+                    statuses.forEach { status ->
+                        Text(
+                            text = "${status.label}: ${status.lives}/${status.maxLives}",
+                            fontSize = 13.sp,
+                            color = Color(0xFF1F2937),
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun GameSettingsTabContent(viewModel: MainViewModel) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val nearbyStatus by viewModel.nearbyStatus.collectAsStateWithLifecycle()
     val connectedDevicesCount by viewModel.connectedDevicesCount.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+    val activity = context.findActivity()
+    val scope = rememberCoroutineScope()
+    var isCheckingForUpdate by remember { mutableStateOf(false) }
+    var isInstallingUpdate by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<GitHubReleaseUpdater.UpdateInfo?>(null) }
+    var updateStatusMessage by remember { mutableStateOf<String?>(null) }
+    var showInstallPrompt by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -1183,6 +1306,17 @@ fun GameSettingsTabContent(viewModel: MainViewModel) {
                 ) {
                     Text("Reset all devices to Start")
                 }
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = { viewModel.startNearbyHosting() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("controller_restart_hosting_button"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Restart controller hosting")
+                }
             }
         }
 
@@ -1197,6 +1331,149 @@ fun GameSettingsTabContent(viewModel: MainViewModel) {
                 checked = settings.fullscreen,
                 onCheckedChange = { viewModel.toggleFullscreen() },
                 modifier = Modifier.testTag("fullscreen_toggle_row_controller")
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        SettingsCategory(title = "App Updates") {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = "Current version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    fontSize = 12.sp,
+                    color = Color(0xFF6B7280)
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        if (isCheckingForUpdate || isInstallingUpdate) return@Button
+                        scope.launch {
+                            isCheckingForUpdate = true
+                            updateStatusMessage = null
+                            val result = GitHubReleaseUpdater.checkForUpdate()
+                            isCheckingForUpdate = false
+                            result.fold(
+                                onSuccess = { info ->
+                                    if (info == null) {
+                                        updateInfo = null
+                                        updateStatusMessage = "Already on latest version."
+                                    } else {
+                                        updateInfo = info
+                                        showInstallPrompt = true
+                                    }
+                                },
+                                onFailure = { error ->
+                                    updateInfo = null
+                                    val message = error.message ?: "Unknown error"
+                                    updateStatusMessage = if (message == "No GitHub release published yet.") {
+                                        "No published update release yet."
+                                    } else {
+                                        "Update check failed: $message"
+                                    }
+                                }
+                            )
+                        }
+                    },
+                    enabled = !isCheckingForUpdate && !isInstallingUpdate,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("check_updates_button_controller"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF111827),
+                        contentColor = Color.White
+                    )
+                ) {
+                    if (isCheckingForUpdate) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    } else {
+                        Text("Check for updates")
+                    }
+                }
+
+                if (isInstallingUpdate) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Downloading update...",
+                        fontSize = 12.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+
+                updateStatusMessage?.let { message ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = message,
+                        fontSize = 12.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
+            }
+        }
+
+        if (showInstallPrompt && updateInfo != null) {
+            val info = updateInfo!!
+            AlertDialog(
+                onDismissRequest = { showInstallPrompt = false },
+                title = { Text("Update available") },
+                text = {
+                    Column {
+                        Text("Version ${info.versionName} is available.")
+                        if (info.body.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = info.body,
+                                fontSize = 12.sp,
+                                color = Color(0xFF6B7280)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showInstallPrompt = false
+                            val currentActivity = activity
+                            if (currentActivity == null) {
+                                updateStatusMessage = "Cannot install update from this context."
+                                return@TextButton
+                            }
+                            scope.launch {
+                                isInstallingUpdate = true
+                                updateStatusMessage = null
+                                val installResult =
+                                    GitHubReleaseUpdater.downloadAndInstall(currentActivity, info)
+                                isInstallingUpdate = false
+                                installResult.fold(
+                                    onSuccess = {
+                                        updateStatusMessage = "Installer opened."
+                                    },
+                                    onFailure = { error ->
+                                        updateStatusMessage =
+                                            "Update install failed: ${error.message ?: "Unknown error"}"
+                                    }
+                                )
+                            }
+                        },
+                        enabled = !isInstallingUpdate
+                    ) {
+                        Text("Install")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showInstallPrompt = false }) {
+                        Text("Later")
+                    }
+                }
             )
         }
     }

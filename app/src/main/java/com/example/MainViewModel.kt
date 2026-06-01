@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
 import com.example.data.GameRepository
 import com.example.data.SettingsEntity
+import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import com.google.android.gms.nearby.Nearby
@@ -19,6 +20,7 @@ import com.google.android.gms.nearby.connection.EndpointDiscoveryCallback
 import com.google.android.gms.nearby.connection.Payload
 import com.google.android.gms.nearby.connection.PayloadCallback
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
+import com.google.android.gms.nearby.connection.ConnectionsStatusCodes
 import com.google.android.gms.nearby.connection.Strategy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,7 +35,7 @@ enum class MyGameState {
 }
 
 enum class ActiveTab {
-    GAME, SETTINGS, GAME_SETTINGS, DISPLAY
+    GAME, SETTINGS, GAME_SETTINGS, LIVE, DISPLAY
 }
 
 data class DisplayLifeStatus(
@@ -223,6 +225,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             maxLives = map["maxLives"]?.toIntOrNull() ?: settings.value.livesCount,
         )
         followerLives[endpointId] = status
+        _displayLifeStatuses.value = followerLives.values.sortedBy { it.label.lowercase() }
         broadcastDisplayLifeStatuses()
     }
 
@@ -817,7 +820,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             .addOnFailureListener { e ->
                 pendingConnectionEndpoints.remove(endpointId)
-                _nearbyStatus.value = "Failed to request connection: ${e.message}"
+                val alreadyConnected =
+                    (e as? ApiException)?.statusCode == ConnectionsStatusCodes.STATUS_ALREADY_CONNECTED_TO_ENDPOINT ||
+                        e.message?.contains("STATUS_ALREADY_CONNECTED_TO_ENDPOINT", ignoreCase = true) == true
+                if (alreadyConnected) {
+                    connectedEndpoints.add(endpointId)
+                    _connectedDevicesCount.value = connectedEndpoints.size
+                    _nearbyStatus.value = "Already connected to $endpointName"
+                } else {
+                    _nearbyStatus.value = "Failed to request connection: ${e.message}"
+                }
             }
     }
 
